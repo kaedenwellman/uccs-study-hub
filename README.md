@@ -79,10 +79,12 @@ Two layers:
    scheduled in-app and displayed via the service worker while the app is open
    or recently backgrounded. No server required.
 2. **Real Web Push (fires when the app is closed)** — an optional backend under
-   `/api` (`register` + a cron `dispatch`) plus Upstash Redis storage, deployed
-   on Vercel. When configured (a `VITE_VAPID_PUBLIC_KEY` is present at build
-   time), enabling reminders subscribes the installed PWA and syncs the reminder
-   schedule to the server, which pushes notifications at the right times. See
+   `/api` (`register` + `dispatch`) plus Upstash Redis storage, deployed on
+   Vercel. When configured (a `VITE_VAPID_PUBLIC_KEY` is present at build time),
+   enabling reminders subscribes the installed PWA and syncs the reminder
+   schedule to the server; `/api/dispatch` is pinged on a schedule and pushes
+   any due notifications. On the free Vercel plan the ping comes from a free
+   external cron (e.g. cron-job.org) since Hobby cron only runs daily. See
    **[DEPLOY.md](DEPLOY.md)** for the full setup.
 
 On iOS, push requires iOS 16.4+ and the app installed to the home screen.

@@ -1,6 +1,7 @@
-// GET/POST /api/dispatch  (invoked by Vercel Cron)
+// GET/POST /api/dispatch  (pinged on a schedule by an external cron, e.g.
+// cron-job.org — the free Vercel plan's built-in cron only runs once a day).
 // Sends any reminders whose fireAt has passed, then removes them.
-// Protected by CRON_SECRET (Vercel Cron sends it as a Bearer token).
+// Protected by CRON_SECRET, sent as an "Authorization: Bearer <secret>" header.
 import webpush from "web-push";
 import { redis, KEYS } from "./_redis.js";
 
