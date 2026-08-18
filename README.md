@@ -71,14 +71,21 @@ iOS only allows PWA notifications for apps added to the home screen:
 The app detects when it isn't running as an installed PWA and shows a one-time
 install banner.
 
-## Notifications — honest scope
+## Notifications
 
-True background push (firing when the app is fully closed) needs a server with
-Web Push / VAPID keys — it can't be done purely client-side, and iOS suspends
-background timers. What this app does instead: schedule **local** reminders that
-fire while the app is open or recently backgrounded, displayed through the
-service worker, and **re-armed every time you open the app**. For guaranteed
-background reminders, add a push backend (a documented future upgrade).
+Two layers:
+
+1. **Local (foreground) reminders** — always on when reminders are enabled;
+   scheduled in-app and displayed via the service worker while the app is open
+   or recently backgrounded. No server required.
+2. **Real Web Push (fires when the app is closed)** — an optional backend under
+   `/api` (`register` + a cron `dispatch`) plus Upstash Redis storage, deployed
+   on Vercel. When configured (a `VITE_VAPID_PUBLIC_KEY` is present at build
+   time), enabling reminders subscribes the installed PWA and syncs the reminder
+   schedule to the server, which pushes notifications at the right times. See
+   **[DEPLOY.md](DEPLOY.md)** for the full setup.
+
+On iOS, push requires iOS 16.4+ and the app installed to the home screen.
 
 ## Deploying
 
@@ -104,8 +111,13 @@ src/
     palette.js          course color palette
     ai.js               Anthropic study-guide call + response parsing
     speech.js           text-to-speech (Web Speech API) hook
-    notifications.js    local reminder scheduling
+    notifications.js    local reminder scheduling + shared reminder builder
+    push.js             Web Push client (subscribe + sync schedule)
   components/           Dashboard, Courses, Settings, forms, cards, StudyGuide…
+api/
+  register.js           subscribe a device + sync the reminder schedule
+  dispatch.js           cron job that sends due push notifications
+  _redis.js             Upstash Redis client
 scripts/generate-icons.mjs   builds the SH-monogram icon set
 ```
 
