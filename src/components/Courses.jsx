@@ -10,6 +10,7 @@ export default function Courses({
   onAddAssignmentToCourse,
   onToggle,
   onEditAssignment,
+  onImport,
 }) {
   const { courses } = state;
 
@@ -25,6 +26,11 @@ export default function Courses({
           <button className="primary-btn gold" onClick={onAddCourse}>
             Add course
           </button>
+          <div style={{ marginTop: 14 }}>
+            <button className="ghost-btn" onClick={onImport}>
+              Import from Canvas
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -104,6 +110,13 @@ export default function Courses({
             onClick={onAddCourse}
           >
             Add course
+          </button>
+          <button
+            className="ghost-btn"
+            style={{ width: "100%", marginTop: 10 }}
+            onClick={onImport}
+          >
+            Import from Canvas
           </button>
         </>
       )}

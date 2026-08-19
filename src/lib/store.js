@@ -167,6 +167,46 @@ export function setStudyGuide(id, guide) {
   updateAssignment(id, { studyGuide: guide });
 }
 
+// ---- Bulk import ---------------------------------------------------------
+
+// Add many assignments at once, optionally creating a new course, in a single
+// state update. `target` is either { courseId } (existing) or
+// { newCourseName, color } (create). `items` are [{ name, type, dueDate, topic }].
+export function bulkImport(target, items) {
+  let courses = state.courses;
+  let courseId = target.courseId;
+
+  if (!courseId) {
+    const course = {
+      id: uid(),
+      name: (target.newCourseName || "Imported course").trim(),
+      instructor: "",
+      color: target.color || nextColor(courses),
+    };
+    courses = [...courses, course];
+    courseId = course.id;
+  }
+
+  const newAssignments = items.map((it) => ({
+    id: uid(),
+    courseId,
+    name: it.name.trim(),
+    type: ASSIGNMENT_TYPES.includes(it.type) ? it.type : "other",
+    dueDate: it.dueDate,
+    topic: (it.topic || "").trim(),
+    completed: false,
+    completedAt: null,
+    studyGuide: null,
+  }));
+
+  setState({
+    ...state,
+    courses,
+    assignments: [...state.assignments, ...newAssignments],
+  });
+  return { courseId, count: newAssignments.length };
+}
+
 // ---- Settings ------------------------------------------------------------
 
 export function updateSettings(patch) {

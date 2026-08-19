@@ -27,6 +27,8 @@ import Modal from "./components/Modal.jsx";
 import CourseForm from "./components/CourseForm.jsx";
 import AssignmentForm from "./components/AssignmentForm.jsx";
 import StudyGuide from "./components/StudyGuide.jsx";
+import ImportModal from "./components/ImportModal.jsx";
+import { decodeImportPayload } from "./lib/canvasImport.js";
 
 function detectStandalone() {
   return (
@@ -48,6 +50,22 @@ export default function App() {
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30 * 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // Import link: open the app at #import=<payload> to preview a Canvas import.
+  useEffect(() => {
+    const m = window.location.hash.match(/[#&]import=([^&]+)/);
+    if (!m) return;
+    try {
+      const payload = decodeImportPayload(m[1]);
+      if (payload && Array.isArray(payload.assignments) && payload.assignments.length) {
+        setModal({ type: "import", data: { payload } });
+      }
+    } catch {
+      /* ignore malformed payload */
+    }
+    // Strip the hash so a refresh doesn't re-open the importer.
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
 
   // (Re)schedule in-app (foreground) reminders whenever data changes.
@@ -77,7 +95,15 @@ export default function App() {
     setModal({ type: "assignment", data: { assignment } });
   const openStudy = (assignment) =>
     setModal({ type: "study", data: { assignmentId: assignment.id } });
+  const openImport = () => setModal({ type: "import", data: {} });
   const closeModal = () => setModal(null);
+
+  const handleImported = (result) => {
+    closeModal();
+    setTab("dashboard");
+    showToast(`Added ${result.count} assignment${result.count === 1 ? "" : "s"}`);
+    // The push-sync effect re-runs automatically on the assignments change.
+  };
 
   // ---- Actions -----------------------------------------------------------
   const handleDeleteAssignment = (assignment) => {
@@ -244,6 +270,7 @@ export default function App() {
             onAddAssignmentToCourse={(courseId) => openNewAssignment(courseId)}
             onToggle={toggleComplete}
             onEditAssignment={openEditAssignment}
+            onImport={openImport}
           />
         )}
 
@@ -323,6 +350,16 @@ export default function App() {
               }}
             />
           )}
+        </Modal>
+      )}
+
+      {modal?.type === "import" && (
+        <Modal title="Import from Canvas" onClose={closeModal}>
+          <ImportModal
+            courses={state.courses}
+            initialPayload={modal.data?.payload || null}
+            onImported={handleImported}
+          />
         </Modal>
       )}
 
