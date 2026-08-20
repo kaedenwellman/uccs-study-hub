@@ -27,7 +27,7 @@ export function buildReminders(assignments, courses, now = Date.now()) {
   const courseName = (id) => courses.find((c) => c.id === id)?.name || "Course";
   const out = [];
   for (const a of assignments) {
-    if (a.completed) continue;
+    if (a.completed || !a.dueDate) continue; // skip undated assignments
     const due = new Date(a.dueDate).getTime();
     if (Number.isNaN(due)) continue;
     for (const offset of OFFSETS) {
@@ -102,7 +102,7 @@ export function scheduleAll(assignments, courses, settings) {
     courses.find((c) => c.id === id)?.name || "Course";
 
   for (const a of assignments) {
-    if (a.completed) continue;
+    if (a.completed || !a.dueDate) continue; // skip undated assignments
     const due = new Date(a.dueDate).getTime();
     if (Number.isNaN(due)) continue;
 

@@ -134,6 +134,34 @@ textarea {
   letter-spacing: -0.2px;
 }
 
+.view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.view-head .view-title {
+  margin: 2px 2px 12px;
+}
+
+.filter-select {
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: var(--r);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-body);
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
 /* ---- Bottom tabs (text labels, no icons) -------------------------------- */
 
 .tabbar {
@@ -271,6 +299,57 @@ textarea {
   margin-top: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.countdown .no-date {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-soft);
+}
+
+/* AI time estimate line */
+.est-line {
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.est-range {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.est-why {
+  color: var(--ink-soft);
+  margin-left: 8px;
+}
+
+.est-error {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* checkbox + label row (e.g. "Set a due date") */
+.toggle-label {
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 14px !important;
+  color: var(--ink) !important;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gold);
 }
 
 .card-actions {

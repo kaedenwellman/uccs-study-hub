@@ -71,6 +71,66 @@ export async function generateStudyGuide({ apiKey, model, course, assignment, to
   return text;
 }
 
+const ESTIMATE_SYSTEM = `You are a study-planning assistant for a college engineering student. Given an assignment, estimate how long it takes to complete start to finish for a typical student. Respond in exactly this format:
+First line: a single time range only, like "2-3 hours" or "30-45 minutes".
+Second line: one short sentence (max 20 words) on the main factors driving the estimate.
+Be realistic. No extra text, no markdown.`;
+
+export async function generateTimeEstimate({
+  apiKey,
+  model,
+  course,
+  assignment,
+  type,
+  topic,
+}) {
+  if (!apiKey) {
+    throw new Error("No Anthropic API key set. Add one in Settings.");
+  }
+
+  const userMessage = `Course: ${course}. Assignment: ${assignment} (type: ${type}).${
+    topic && topic.trim() ? " Details: " + topic : ""
+  }`;
+
+  let response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: model || "claude-sonnet-4-6",
+        max_tokens: 150,
+        system: ESTIMATE_SYSTEM,
+        messages: [{ role: "user", content: userMessage }],
+      }),
+    });
+  } catch {
+    throw new Error("Network error reaching the Anthropic API.");
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Invalid API key.");
+    if (response.status === 429) throw new Error("Rate limited. Try again shortly.");
+    throw new Error(`Estimate request failed (${response.status}).`);
+  }
+
+  const data = await response.json();
+  const text = data?.content?.[0]?.text?.trim();
+  if (!text) throw new Error("The API returned an empty response.");
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return {
+    range: lines[0] || text,
+    rationale: lines.slice(1).join(" "),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 // Parse the model output into structured sections for rendering.
 // Returns { keyConcepts: string, summary: string, questions: [{q, a}] }.
 export function parseStudyGuide(text) {

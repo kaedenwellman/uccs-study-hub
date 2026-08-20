@@ -16,7 +16,12 @@ export const URGENCY = {
   red: { key: "red", color: "#9c3527" }, // under 24h / overdue
 };
 
+export function hasDue(dueDate) {
+  return Boolean(dueDate) && !Number.isNaN(new Date(dueDate).getTime());
+}
+
 export function urgencyFor(dueDate, now = Date.now()) {
+  if (!hasDue(dueDate)) return URGENCY.gold; // undated: neutral accent
   const diff = new Date(dueDate).getTime() - now;
   if (diff < 24 * HOUR) return URGENCY.red; // covers overdue too
   if (diff < 72 * HOUR) return URGENCY.orange;
@@ -29,6 +34,7 @@ export function urgencyFor(dueDate, now = Date.now()) {
 //   > 0      -> "45m"
 //   <= 0     -> "OVERDUE"
 export function formatCountdown(dueDate, now = Date.now()) {
+  if (!hasDue(dueDate)) return "";
   const diff = new Date(dueDate).getTime() - now;
   if (diff <= 0) return "OVERDUE";
 
@@ -42,6 +48,7 @@ export function formatCountdown(dueDate, now = Date.now()) {
 }
 
 export function isOverdue(dueDate, now = Date.now()) {
+  if (!hasDue(dueDate)) return false;
   return new Date(dueDate).getTime() - now <= 0;
 }
 

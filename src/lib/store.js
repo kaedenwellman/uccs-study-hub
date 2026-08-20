@@ -6,9 +6,17 @@ import { nextColor } from "./palette.js";
 const STORAGE_KEY = "uccs-study-hub";
 const SCHEMA_VERSION = 1;
 
-export const ASSIGNMENT_TYPES = ["homework", "quiz", "test", "project", "other"];
+export const ASSIGNMENT_TYPES = [
+  "homework",
+  "lab",
+  "quiz",
+  "test",
+  "project",
+  "other",
+];
 export const TYPE_LABELS = {
   homework: "Homework",
+  lab: "Lab",
   quiz: "Quiz",
   test: "Test",
   project: "Project",
@@ -122,11 +130,12 @@ export function addAssignment({ courseId, name, type, dueDate, topic }) {
     courseId,
     name: name.trim(),
     type,
-    dueDate,
+    dueDate: dueDate || null, // due date is optional
     topic: (topic || "").trim(),
     completed: false,
     completedAt: null,
     studyGuide: null,
+    timeEstimate: null,
   };
   setState({ ...state, assignments: [...state.assignments, assignment] });
   return assignment;
@@ -167,6 +176,10 @@ export function setStudyGuide(id, guide) {
   updateAssignment(id, { studyGuide: guide });
 }
 
+export function setTimeEstimate(id, estimate) {
+  updateAssignment(id, { timeEstimate: estimate });
+}
+
 // ---- Bulk import ---------------------------------------------------------
 
 // Add many assignments at once, optionally creating a new course, in a single
@@ -192,11 +205,12 @@ export function bulkImport(target, items) {
     courseId,
     name: it.name.trim(),
     type: ASSIGNMENT_TYPES.includes(it.type) ? it.type : "other",
-    dueDate: it.dueDate,
+    dueDate: it.dueDate || null,
     topic: (it.topic || "").trim(),
     completed: false,
     completedAt: null,
     studyGuide: null,
+    timeEstimate: null,
   }));
 
   setState({
@@ -219,10 +233,16 @@ export function courseById(s, id) {
   return s.courses.find((c) => c.id === id) || null;
 }
 
+// Dated assignments first (soonest due first); undated ones sort to the end.
+function dueSortValue(a) {
+  const t = a.dueDate ? new Date(a.dueDate).getTime() : NaN;
+  return Number.isNaN(t) ? Infinity : t;
+}
+
 export function sortedUpcoming(s) {
   return s.assignments
     .filter((a) => !a.completed)
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+    .sort((a, b) => dueSortValue(a) - dueSortValue(b));
 }
 
 export function sortedCompleted(s) {
@@ -236,6 +256,6 @@ export function assignmentsForCourse(s, courseId) {
     .filter((a) => a.courseId === courseId)
     .sort((a, b) => {
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
+      return dueSortValue(a) - dueSortValue(b);
     });
 }

@@ -27,8 +27,14 @@ export default function AssignmentForm({
   );
   const [name, setName] = useState(assignment?.name || "");
   const [type, setType] = useState(assignment?.type || "homework");
+  // Due date is optional. `hasDue` toggles it on/off.
+  const [hasDue, setHasDue] = useState(
+    assignment ? Boolean(assignment.dueDate) : true,
+  );
   const [due, setDue] = useState(
-    assignment ? toDatetimeLocalValue(assignment.dueDate) : defaultDue(),
+    assignment && assignment.dueDate
+      ? toDatetimeLocalValue(assignment.dueDate)
+      : defaultDue(),
   );
   const [topic, setTopic] = useState(assignment?.topic || "");
   const [error, setError] = useState("");
@@ -43,12 +49,12 @@ export default function AssignmentForm({
       setError("Assignment name is required.");
       return;
     }
-    if (!due) {
-      setError("A due date and time is required.");
+    if (hasDue && !due) {
+      setError("Enter a due date, or turn off “Set a due date”.");
       return;
     }
     // datetime-local has no timezone; new Date() reads it as local time.
-    const dueISO = new Date(due).toISOString();
+    const dueISO = hasDue ? new Date(due).toISOString() : null;
 
     if (editing) {
       updateAssignment(assignment.id, {
@@ -110,12 +116,30 @@ export default function AssignmentForm({
       </div>
 
       <div className="field">
-        <label>Due date &amp; time *</label>
-        <input
-          type="datetime-local"
-          value={due}
-          onChange={(e) => setDue(e.target.value)}
-        />
+        <label className="toggle-label">
+          <input
+            type="checkbox"
+            checked={hasDue}
+            onChange={(e) => {
+              setHasDue(e.target.checked);
+              setError("");
+            }}
+          />
+          Set a due date
+        </label>
+        {hasDue && (
+          <input
+            type="datetime-local"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            style={{ marginTop: 8 }}
+          />
+        )}
+        {!hasDue && (
+          <div className="hint" style={{ marginTop: 6 }}>
+            No due date — it'll show under “No due date” and won't send reminders.
+          </div>
+        )}
       </div>
 
       <div className="field">

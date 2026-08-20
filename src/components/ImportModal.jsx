@@ -5,7 +5,7 @@ import {
   decodeImportPayload,
 } from "../lib/canvasImport.js";
 import { TYPE_LABELS, bulkImport } from "../lib/store.js";
-import { formatDueDate, isOverdue } from "../lib/time.js";
+import { formatDueDate, isOverdue, hasDue } from "../lib/time.js";
 
 export default function ImportModal({ courses, initialPayload, onImported }) {
   const [parsed, setParsed] = useState(initialPayload || null);
@@ -199,8 +199,9 @@ function Review({ parsed, courses, onImported }) {
                 <span className="import-row-meta">
                   <span className={"badge " + it.type}>{TYPE_LABELS[it.type]}</span>
                   <span className={"import-due" + (overdue ? " past" : "")}>
-                    {formatDueDate(it.dueDate)}
-                    {overdue ? " · past due" : ""}
+                    {!hasDue(it.dueDate)
+                      ? "No due date"
+                      : formatDueDate(it.dueDate) + (overdue ? " · past due" : "")}
                   </span>
                 </span>
               </span>

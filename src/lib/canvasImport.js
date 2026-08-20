@@ -20,9 +20,53 @@ export function detectType(title = "", submissionTypes = "") {
   if (/\bproject\b/.test(t)) return "project"; // "Final Project" -> project
   if (/\bquiz(z)?\b/.test(t)) return "quiz";
   if (/\b(exam|midterm|final|test)\b/.test(t)) return "test";
-  if (/\b(hw|hwk|homework|problem set|pset|assignment|lab)\b/.test(t))
+  if (/\blab\b/.test(t) || /\blab[\s-]?\d/.test(t)) return "lab";
+  if (/\b(hw|hwk|homework|problem set|pset|assignment)\b/.test(t))
     return "homework";
   return "other";
+}
+
+// From a Canvas module's name, decide if its file items should be pulled in as
+// (undated) trackable assignments, and which type they are.
+function moduleCategory(name = "") {
+  const n = name.toLowerCase();
+  if (/\blab/.test(n)) return "lab";
+  if (/home\s*work|homework/.test(n)) return "homework";
+  return null; // lectures, schedules, solution keys, etc. are skipped
+}
+
+// Pull undated homework/lab items from modules, deduped by their number so the
+// many files per lab (instructions, sign-off, program) collapse into one entry.
+function extractModuleItems(data) {
+  const out = [];
+  for (const mod of data.modules || []) {
+    const type = moduleCategory(mod.name || "");
+    if (!type) continue;
+    const numRe =
+      type === "lab"
+        ? /\blab\s*-?\s*(\d+)/i
+        : /\b(?:hwk|homework|hw)\s*-?\s*(\d+)/i;
+    const seen = new Set();
+    for (const it of mod.items || []) {
+      const title = it.title || it.name || "";
+      const m = title.match(numRe);
+      if (!m) continue; // skip templates, sign-offs, misc files with no number
+      const key = type + "-" + m[1];
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        name: type === "lab" ? `Lab ${m[1]}` : `HWK ${m[1]}`,
+        type,
+        dueDate: null,
+        topic: "",
+      });
+    }
+  }
+  // Group by type (homework, then labs), each in natural number order.
+  const num = (s) => parseInt((s.name.match(/\d+/) || [0])[0], 10) || 0;
+  const order = { homework: 0, lab: 1 };
+  out.sort((a, b) => (order[a.type] - order[b.type]) || num(a) - num(b));
+  return out;
 }
 
 function cleanName(s = "") {
@@ -94,7 +138,10 @@ export function parseCanvasCourseData(text) {
   }
 
   assignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-  return { courseTitle, assignments };
+
+  // Dated graded items first, then undated homework/labs pulled from modules.
+  const undated = extractModuleItems(data);
+  return { courseTitle, assignments: [...assignments, ...undated] };
 }
 
 // ---- .ics calendar ---------------------------------------------------------
