@@ -56,14 +56,15 @@ export default function App() {
   useEffect(() => {
     const m = window.location.hash.match(/[#&]import=([^&]+)/);
     if (!m) return;
-    try {
-      const payload = decodeImportPayload(m[1]);
-      if (payload && Array.isArray(payload.assignments) && payload.assignments.length) {
-        setModal({ type: "import", data: { payload } });
-      }
-    } catch {
-      /* ignore malformed payload */
-    }
+    decodeImportPayload(m[1])
+      .then((payload) => {
+        if (payload && Array.isArray(payload.assignments) && payload.assignments.length) {
+          setModal({ type: "import", data: { payload } });
+        }
+      })
+      .catch(() => {
+        /* ignore malformed payload */
+      });
     // Strip the hash so a refresh doesn't re-open the importer.
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);

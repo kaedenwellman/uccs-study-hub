@@ -32,14 +32,14 @@ export default function ImportModal({ courses, initialPayload, onImported }) {
     }
   };
 
-  const loadCode = (codeText) => {
+  const loadCode = async (codeText) => {
     setError("");
     const raw = (codeText || "").trim();
     if (!raw) return;
     try {
       // Accept a raw code or a full link containing #import=<code>.
       const m = raw.match(/import=([A-Za-z0-9_-]+)/);
-      const payload = decodeImportPayload(m ? m[1] : raw);
+      const payload = await decodeImportPayload(m ? m[1] : raw);
       if (payload && Array.isArray(payload.assignments) && payload.assignments.length) {
         setParsed(payload);
       } else {
