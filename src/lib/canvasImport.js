@@ -35,8 +35,23 @@ function moduleCategory(name = "") {
   return null; // lectures, schedules, solution keys, etc. are skipped
 }
 
-// Pull undated homework/lab items from modules, deduped by their number so the
-// many files per lab (instructions, sign-off, program) collapse into one entry.
+// Files in a module that aren't themselves assignments.
+const MODULE_NOISE =
+  /guideline|template|syllabus|schedule|rubric|solution|answer\s*key|sign-?off|paper to read|\.ino\b/i;
+
+function stripExt(s = "") {
+  return s.replace(/\.[a-z0-9]{2,4}$/i, "").replace(/\s+/g, " ").trim();
+}
+
+function normKey(s = "") {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Pull undated homework/lab items from modules. Two strategies per module:
+//   1. If items carry an explicit unit number ("Lab 1", "HWK 2"), collapse the
+//      many files per unit (instructions, sign-off, program) into one entry.
+//   2. Otherwise (chapter-named like "CH1A Homework"), keep each cleaned title,
+//      skipping obvious non-assignments (guidelines, templates, etc.).
 function extractModuleItems(data) {
   const out = [];
   for (const mod of data.modules || []) {
@@ -44,28 +59,51 @@ function extractModuleItems(data) {
     if (!type) continue;
     const numRe =
       type === "lab"
-        ? /\blab\s*-?\s*(\d+)/i
-        : /\b(?:hwk|homework|hw)\s*-?\s*(\d+)/i;
-    const seen = new Set();
+        ? /\blab\s*-?\s*(\d+)\b/i
+        : /\b(?:hwk|homework|hw)\s*-?\s*(\d+)\b/i;
+
+    // Pass 1: explicit unit numbers.
+    const numbered = [];
+    const seenNum = new Set();
     for (const it of mod.items || []) {
-      const title = it.title || it.name || "";
-      const m = title.match(numRe);
-      if (!m) continue; // skip templates, sign-offs, misc files with no number
-      const key = type + "-" + m[1];
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        name: type === "lab" ? `Lab ${m[1]}` : `HWK ${m[1]}`,
+      const m = (it.title || it.name || "").match(numRe);
+      if (!m || seenNum.has(m[1])) continue;
+      seenNum.add(m[1]);
+      numbered.push({
+        name: (type === "lab" ? "Lab " : "HWK ") + m[1],
         type,
+        num: m[1],
         dueDate: null,
         topic: "",
       });
     }
+    if (numbered.length) {
+      out.push(...numbered);
+      continue;
+    }
+
+    // Pass 2: chapter-named / titled items.
+    const seenName = new Set();
+    for (const it of mod.items || []) {
+      const title = it.title || it.name || "";
+      if (MODULE_NOISE.test(title)) continue;
+      const name = stripExt(title);
+      if (!name) continue;
+      const k = normKey(name);
+      if (seenName.has(k)) continue;
+      seenName.add(k);
+      out.push({ name, type, num: null, dueDate: null, topic: "" });
+    }
   }
-  // Group by type (homework, then labs), each in natural number order.
-  const num = (s) => parseInt((s.name.match(/\d+/) || [0])[0], 10) || 0;
+
+  const num = (s) => (s.num ? parseInt(s.num, 10) : 999);
   const order = { homework: 0, lab: 1 };
-  out.sort((a, b) => (order[a.type] - order[b.type]) || num(a) - num(b));
+  out.sort(
+    (a, b) =>
+      (order[a.type] - order[b.type]) ||
+      num(a) - num(b) ||
+      a.name.localeCompare(b.name),
+  );
   return out;
 }
 
@@ -139,19 +177,26 @@ export function parseCanvasCourseData(text) {
 
   assignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
-  // Dated graded items first, then undated homework/labs pulled from modules —
-  // but drop any module item already represented (same type + number) among the
-  // dated assignments, so a dated "Lab-1" doesn't duplicate an undated "Lab 1".
-  const numOf = (s) => (s.match(/\d+/) || [])[0];
-  const datedKeys = new Set(
-    assignments
-      .map((a) => (numOf(a.name) ? a.type + ":" + numOf(a.name) : null))
-      .filter(Boolean),
-  );
-  const undated = extractModuleItems(data).filter((u) => {
-    const n = numOf(u.name);
-    return !(n && datedKeys.has(u.type + ":" + n));
-  });
+  // Dated graded items first, then undated homework/labs from modules — but drop
+  // any module item already represented among the dated assignments, matched by
+  // unit number (e.g. dated "Lab-1" vs undated "Lab 1") OR by normalized name
+  // (e.g. dated "CH1A Homework" vs the same file in a module).
+  const datedByNum = new Set();
+  const datedByName = new Set();
+  for (const a of assignments) {
+    datedByName.add(normKey(a.name));
+    const m = a.name.match(/\b(?:lab|hwk|hw|homework)\s*-?\s*(\d+)\b/i);
+    if (m && (a.type === "lab" || a.type === "homework")) {
+      datedByNum.add(a.type + ":" + m[1]);
+    }
+  }
+  const undated = extractModuleItems(data)
+    .filter((u) => {
+      if (u.num && datedByNum.has(u.type + ":" + u.num)) return false;
+      if (datedByName.has(normKey(u.name))) return false;
+      return true;
+    })
+    .map(({ name, type, dueDate, topic }) => ({ name, type, dueDate, topic }));
   return { courseTitle, assignments: [...assignments, ...undated] };
 }
 
