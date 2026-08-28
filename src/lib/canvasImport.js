@@ -139,8 +139,19 @@ export function parseCanvasCourseData(text) {
 
   assignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
-  // Dated graded items first, then undated homework/labs pulled from modules.
-  const undated = extractModuleItems(data);
+  // Dated graded items first, then undated homework/labs pulled from modules —
+  // but drop any module item already represented (same type + number) among the
+  // dated assignments, so a dated "Lab-1" doesn't duplicate an undated "Lab 1".
+  const numOf = (s) => (s.match(/\d+/) || [])[0];
+  const datedKeys = new Set(
+    assignments
+      .map((a) => (numOf(a.name) ? a.type + ":" + numOf(a.name) : null))
+      .filter(Boolean),
+  );
+  const undated = extractModuleItems(data).filter((u) => {
+    const n = numOf(u.name);
+    return !(n && datedKeys.has(u.type + ":" + n));
+  });
   return { courseTitle, assignments: [...assignments, ...undated] };
 }
 
