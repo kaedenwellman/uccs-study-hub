@@ -1,9 +1,10 @@
 // GET/POST /api/dispatch  (pinged on a schedule by an external cron, e.g.
 // cron-job.org — the free Vercel plan's built-in cron only runs once a day).
-// Sends any reminders whose fireAt has passed, then removes them.
+// For each install, sends any reminders whose fireAt has passed, then removes
+// them. Reminders are scoped per install, so devices only get their own.
 // Protected by CRON_SECRET, sent as an "Authorization: Bearer <secret>" header.
 import webpush from "web-push";
-import { redis, KEYS } from "./_redis.js";
+import { redis, USERS, userKeys } from "./_redis.js";
 
 function configureVapid() {
   webpush.setVapidDetails(
@@ -14,15 +15,10 @@ function configureVapid() {
 }
 
 export default async function handler(req, res) {
-  // Cron auth: Vercel sends "Authorization: Bearer <CRON_SECRET>".
   const auth = req.headers["authorization"] || "";
-  if (
-    process.env.CRON_SECRET &&
-    auth !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-
   if (!process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_PUBLIC_KEY) {
     return res.status(500).json({ error: "VAPID keys not configured" });
   }
@@ -31,57 +27,47 @@ export default async function handler(req, res) {
   const now = Date.now();
 
   try {
-    // Reminders that are now due.
-    const dueKeys = await redis.zrange(KEYS.reminders, 0, now, {
-      byScore: true,
-    });
-    if (!dueKeys.length) {
-      return res.status(200).json({ sent: 0, due: 0 });
-    }
-
-    // Current device subscriptions: { endpoint: subscriptionObject }.
-    const subs = (await redis.hgetall(KEYS.subs)) || {};
-    const endpoints = Object.keys(subs);
-
+    const uids = (await redis.smembers(USERS)) || [];
     let sent = 0;
-    const deadEndpoints = new Set();
+    let due = 0;
+    let devices = 0;
 
-    for (const key of dueKeys) {
-      const data = (await redis.hget(KEYS.rdata, key)) || {};
-      const payload = JSON.stringify({
-        title: data.title || "Study Hub",
-        body: data.body || "",
-        tag: key,
-      });
+    for (const uid of uids) {
+      const K = userKeys(uid);
+      const dueKeys = await redis.zrange(K.rem, 0, now, { byScore: true });
+      if (!dueKeys.length) continue;
+      due += dueKeys.length;
 
-      for (const endpoint of endpoints) {
-        if (deadEndpoints.has(endpoint)) continue;
-        try {
-          await webpush.sendNotification(subs[endpoint], payload);
-          sent++;
-        } catch (err) {
-          // 404/410 -> subscription is gone; drop it.
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            deadEndpoints.add(endpoint);
-          } else {
-            console.warn("push send failed:", err.statusCode, err.body);
+      const subs = (await redis.hgetall(K.subs)) || {};
+      const endpoints = Object.keys(subs);
+      devices += endpoints.length;
+      const dead = new Set();
+
+      for (const key of dueKeys) {
+        const data = (await redis.hget(K.rdata, key)) || {};
+        const payload = JSON.stringify({
+          title: data.title || "Study Hub",
+          body: data.body || "",
+          tag: key,
+        });
+        for (const endpoint of endpoints) {
+          if (dead.has(endpoint)) continue;
+          try {
+            await webpush.sendNotification(subs[endpoint], payload);
+            sent++;
+          } catch (err) {
+            if (err.statusCode === 404 || err.statusCode === 410) dead.add(endpoint);
+            else console.warn("push send failed:", err.statusCode);
           }
         }
       }
+
+      await redis.zrem(K.rem, ...dueKeys);
+      await redis.hdel(K.rdata, ...dueKeys);
+      if (dead.size) await redis.hdel(K.subs, ...dead);
     }
 
-    // Clean up fired reminders and dead subscriptions.
-    await redis.zrem(KEYS.reminders, ...dueKeys);
-    await redis.hdel(KEYS.rdata, ...dueKeys);
-    if (deadEndpoints.size) {
-      await redis.hdel(KEYS.subs, ...deadEndpoints);
-    }
-
-    return res.status(200).json({
-      sent,
-      due: dueKeys.length,
-      devices: endpoints.length,
-    });
+    return res.status(200).json({ sent, due, devices, users: uids.length });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Server error" });
   }

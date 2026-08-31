@@ -8,8 +8,22 @@ export const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
 });
 
-// Redis layout:
-//   subs      (hash)        field = subscription endpoint, value = subscription object
-//   reminders (sorted set)  member = reminder key, score = fireAt (epoch ms)
-//   rdata     (hash)        field = reminder key, value = { title, body }
-export const KEYS = { subs: "subs", reminders: "reminders", rdata: "rdata" };
+// Redis layout (per install/user, so notifications stay isolated):
+//   users            (set)         all install ids
+//   u:{uid}:subs     (hash)        endpoint -> subscription object
+//   u:{uid}:rem      (sorted set)  reminder key -> score = fireAt (epoch ms)
+//   u:{uid}:rdata    (hash)        reminder key -> { title, body }
+export const USERS = "users";
+
+// Install ids come from the client; keep them to a safe key charset.
+export function safeUid(uid) {
+  return typeof uid === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(uid) ? uid : null;
+}
+
+export function userKeys(uid) {
+  return {
+    subs: `u:${uid}:subs`,
+    rem: `u:${uid}:rem`,
+    rdata: `u:${uid}:rdata`,
+  };
+}

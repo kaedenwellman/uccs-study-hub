@@ -12,6 +12,26 @@ const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 const APP_TOKEN = import.meta.env.VITE_APP_TOKEN || "";
 const API_BASE = (import.meta.env.VITE_API_BASE || "/api").replace(/\/$/, "");
 
+// A stable per-install id so each device only receives its own reminders
+// (keeps notifications isolated between different people using the same backend).
+function getInstallId() {
+  const KEY = "uccs-install-id";
+  let id = null;
+  try {
+    id = localStorage.getItem(KEY);
+    if (!id) {
+      id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : "u-" + Date.now().toString(36) + Math.random().toString(36).slice(2);
+      localStorage.setItem(KEY, id);
+    }
+  } catch {
+    id = id || "u-ephemeral";
+  }
+  return id;
+}
+
 // Push is only available when a VAPID key was baked in at build time.
 export function pushConfigured() {
   return Boolean(VAPID_PUBLIC);
@@ -42,7 +62,7 @@ async function api(body) {
       "Content-Type": "application/json",
       "x-app-token": APP_TOKEN,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ uid: getInstallId(), ...body }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

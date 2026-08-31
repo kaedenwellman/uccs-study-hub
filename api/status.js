@@ -1,7 +1,7 @@
-// GET /api/status  — diagnostic. Reports how many devices are subscribed and
-// how many reminders are scheduled, so we can tell whether the phone actually
-// registered for push. Protected by CRON_SECRET (same Bearer token as dispatch).
-import { redis, KEYS } from "./_redis.js";
+// GET /api/status  — diagnostic. Aggregates across all installs: how many
+// devices are subscribed and how many reminders are scheduled. Pass ?uid=... to
+// scope to one install. Protected by CRON_SECRET (Bearer token).
+import { redis, USERS, safeUid, userKeys } from "./_redis.js";
 
 export default async function handler(req, res) {
   const auth = req.headers["authorization"] || "";
@@ -11,29 +11,34 @@ export default async function handler(req, res) {
 
   try {
     const now = Date.now();
-    const devices = await redis.hlen(KEYS.subs);
-    const reminders = await redis.zcard(KEYS.reminders);
-    const dueNow = await redis.zcount(KEYS.reminders, 0, now);
+    const one = safeUid(req.query?.uid);
+    const uids = one ? [one] : (await redis.smembers(USERS)) || [];
 
-    // Soonest upcoming reminder, if any.
-    const soonest = await redis.zrange(KEYS.reminders, 0, 0, {
-      withScores: true,
-    });
-    let next = null;
-    if (soonest.length >= 2) {
-      const fireAt = Number(soonest[1]);
-      next = {
-        key: soonest[0],
-        fireAt,
-        inMinutes: Math.round((fireAt - now) / 60000),
-      };
+    let devices = 0;
+    let reminders = 0;
+    let dueNow = 0;
+    let soonest = null;
+
+    for (const uid of uids) {
+      const K = userKeys(uid);
+      devices += await redis.hlen(K.subs);
+      reminders += await redis.zcard(K.rem);
+      dueNow += await redis.zcount(K.rem, 0, now);
+      const next = await redis.zrange(K.rem, 0, 0, { withScores: true });
+      if (next.length >= 2) {
+        const fireAt = Number(next[1]);
+        if (!soonest || fireAt < soonest.fireAt) {
+          soonest = { fireAt, inMinutes: Math.round((fireAt - now) / 60000) };
+        }
+      }
     }
 
     return res.status(200).json({
-      devices, // push subscriptions stored (your phone should be >= 1)
-      reminders, // total reminders scheduled
-      dueNow, // reminders ready to fire right now
-      next, // soonest upcoming reminder
+      users: uids.length,
+      devices,
+      reminders,
+      dueNow,
+      next: soonest,
       now,
     });
   } catch (err) {
