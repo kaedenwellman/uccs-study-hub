@@ -4,10 +4,15 @@ import {
   shortCourseName,
   decodeImportPayload,
 } from "../lib/canvasImport.js";
+import {
+  canvasConfigured,
+  fetchCanvasCourses,
+  fetchCanvasAssignments,
+} from "../lib/canvasApi.js";
 import { TYPE_LABELS, bulkImport } from "../lib/store.js";
 import { formatDueDate, isOverdue, hasDue } from "../lib/time.js";
 
-export default function ImportModal({ courses, initialPayload, onImported }) {
+export default function ImportModal({ courses, settings, initialPayload, onImported }) {
   const [parsed, setParsed] = useState(initialPayload || null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,11 +57,85 @@ export default function ImportModal({ courses, initialPayload, onImported }) {
 
   if (!parsed) {
     return (
-      <FilePicker error={error} busy={busy} onPick={loadFile} onCode={loadCode} />
+      <div>
+        {canvasConfigured(settings) && (
+          <CanvasSection settings={settings} onLoaded={setParsed} />
+        )}
+        <FilePicker error={error} busy={busy} onPick={loadFile} onCode={loadCode} />
+      </div>
     );
   }
 
   return <Review parsed={parsed} courses={courses} onImported={onImported} />;
+}
+
+function CanvasSection({ settings, onLoaded }) {
+  const [courses, setCourses] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadCourses = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      const list = await fetchCanvasCourses(settings);
+      setCourses(list);
+      if (!list.length) setError("No active courses found on Canvas.");
+    } catch (err) {
+      setError(err.message || "Couldn't load Canvas courses.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickCourse = async (course) => {
+    setError("");
+    setBusy(true);
+    try {
+      const assignments = await fetchCanvasAssignments(settings, course.id);
+      if (!assignments.length) {
+        setError("That course has no assignments.");
+      } else {
+        onLoaded({ courseTitle: course.name, assignments });
+      }
+    } catch (err) {
+      setError(err.message || "Couldn't load assignments.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="canvas-section">
+      <div className="canvas-head">Sync from Canvas</div>
+      {courses === null ? (
+        <button className="primary-btn gold" onClick={loadCourses} disabled={busy}>
+          {busy ? "Loading…" : "Load my Canvas courses"}
+        </button>
+      ) : (
+        <div className="canvas-course-list">
+          {courses.map((c) => (
+            <button
+              key={c.id}
+              className="canvas-course"
+              onClick={() => pickCourse(c)}
+              disabled={busy}
+            >
+              <span className="canvas-course-name">{c.name}</span>
+              {c.code && <span className="canvas-course-code">{c.code}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      {busy && courses !== null && (
+        <div className="hint" style={{ marginTop: 8 }}>
+          Loading assignments…
+        </div>
+      )}
+      {error && <div className="field-error" style={{ marginTop: 10 }}>{error}</div>}
+      <div className="import-or">or import a file</div>
+    </div>
+  );
 }
 
 function FilePicker({ onPick, onCode, error, busy }) {

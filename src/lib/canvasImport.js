@@ -107,15 +107,21 @@ function extractModuleItems(data) {
   return out;
 }
 
-function cleanName(s = "") {
+export function cleanName(s = "") {
   return s.replace(/\s+/g, " ").trim();
 }
 
-function stripHtml(s = "") {
+export function stripHtml(s = "") {
   return s
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ")
+    .replace(/&(ndash|mdash);/g, "-")
+    .replace(/&(rsquo|lsquo|#39|apos);/g, "'")
+    .replace(/&(rdquo|ldquo|quot);/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&")
+    .replace(/\s+([,.;:!?])/g, "$1") // no space before punctuation
     .replace(/\s+/g, " ")
     .trim();
 }

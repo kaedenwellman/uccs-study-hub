@@ -36,6 +36,8 @@ function emptyState() {
       notificationsEnabled: false,
       notificationPromptSeen: false,
       installBannerDismissed: false,
+      canvasUrl: "",
+      canvasToken: "",
     },
   };
 }

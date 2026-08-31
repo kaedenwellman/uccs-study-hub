@@ -12,11 +12,21 @@ export default function Settings({
   onToast,
 }) {
   const [keyInput, setKeyInput] = useState(settings.apiKey || "");
+  const [canvasUrl, setCanvasUrl] = useState(settings.canvasUrl || "");
+  const [canvasToken, setCanvasToken] = useState(settings.canvasToken || "");
   const notifOn = settings.notificationsEnabled && notifPermission === "granted";
 
   function saveKey() {
     updateSettings({ apiKey: keyInput.trim() });
     onToast("API key saved");
+  }
+
+  function saveCanvas() {
+    updateSettings({
+      canvasUrl: canvasUrl.trim(),
+      canvasToken: canvasToken.trim(),
+    });
+    onToast("Canvas connection saved");
   }
 
   return (
@@ -57,6 +67,53 @@ export default function Settings({
         <p style={{ marginTop: 13, marginBottom: 0 }}>
           Get a key at console.anthropic.com. Model:{" "}
           <strong>{settings.model}</strong>.
+        </p>
+      </div>
+
+      {/* Canvas */}
+      <div className="settings-group">
+        <h3>Canvas</h3>
+        <p>
+          Connect Canvas to import your courses and assignments (with full
+          descriptions) in one tap. Create a token in Canvas: Account → Settings
+          → Approved Integrations → New Access Token. Your URL and token stay on
+          this device and are sent only to Canvas through the app's proxy.
+        </p>
+        <div className="field" style={{ marginBottom: 10 }}>
+          <label>Canvas web address</label>
+          <input
+            value={canvasUrl}
+            onChange={(e) => setCanvasUrl(e.target.value)}
+            placeholder="e.g. canvas.uccs.edu"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="field" style={{ marginBottom: 12 }}>
+          <label>Canvas access token</label>
+          <input
+            type="password"
+            value={canvasToken}
+            onChange={(e) => setCanvasToken(e.target.value)}
+            placeholder="paste your access token"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        <button className="primary-btn" onClick={saveCanvas}>
+          Save Canvas
+        </button>
+        {settings.canvasUrl && settings.canvasToken ? (
+          <span className="status-pill on" style={{ marginLeft: 10 }}>
+            Connected
+          </span>
+        ) : (
+          <span className="status-pill off" style={{ marginLeft: 10 }}>
+            Not connected
+          </span>
+        )}
+        <p style={{ marginTop: 12, marginBottom: 0 }}>
+          Then use Courses → Import from Canvas to pull a course in.
         </p>
       </div>
 

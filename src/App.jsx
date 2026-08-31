@@ -358,6 +358,7 @@ export default function App() {
         <Modal title="Import from Canvas" onClose={closeModal}>
           <ImportModal
             courses={state.courses}
+            settings={state.settings}
             initialPayload={modal.data?.payload || null}
             onImported={handleImported}
           />
